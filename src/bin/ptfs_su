@@ -1,0 +1,87 @@
+#!/usr/bin/env python3
+
+import json
+import hashlib
+import argparse
+import os
+from getpass import getpass
+def check() :
+    sys_file_path =os.path.expanduser("~/ptfs/sys/sys.json")
+
+    try:
+        with open(sys_file_path, 'r') as sys_file:
+            sys_data = json.load(sys_file)
+            status = sys_data.get("status", "")
+    except FileNotFoundError:
+        print("Error: sys.json file not found.")
+        exit(1)
+    except json.JSONDecodeError:
+        print("Error: Unable to decode sys.json file.")
+        exit(1)
+
+    if status.lower() == "off":
+        print("ptfs is off.")
+        exit(1)
+
+# Get the absolute path to the home directory
+home_directory = os.path.expanduser("~")
+BASE_DIR = os.path.join(home_directory, "ptfs")
+SYS_FILE_PATH = os.path.join(BASE_DIR, "sys/sys.json")
+ROOT_FILE_PATH = os.path.join(BASE_DIR, "etc/root_file.json")
+USERS_FILE_PATH = os.path.join(BASE_DIR, "etc/users_file.json")
+
+def hash_password(password):
+    return hashlib.sha256(password.encode()).hexdigest()
+
+def authenticate_user(username, password, user_data):
+    hashed_password = hash_password(password)
+    return user_data.get(username, {}).get("password") == hashed_password
+
+def switch_user(new_user):
+    try:
+        # Load the current system status
+        with open(SYS_FILE_PATH, 'r') as sys_file:
+            sys_data = json.load(sys_file)
+
+        # Check if the new user is root
+        if new_user.lower() == "root":
+            # Authenticate the root user
+            with open(ROOT_FILE_PATH, 'r') as root_file:
+                root_data = json.load(root_file)
+
+            root_password = getpass("Enter root password: ")
+            if authenticate_user("root", root_password, root_data):
+                sys_data["connected_user"] = "root"
+            else:
+                print("Authentication failed. Invalid root password.")
+        else:
+            # Authenticate a regular user
+            with open(USERS_FILE_PATH, 'r') as users_file:
+                users_data = json.load(users_file)
+
+            user_password = getpass(f"Enter password for {new_user}: ")
+            if authenticate_user(new_user, user_password, users_data):
+                sys_data["connected_user"] = new_user
+            else:
+                print("Authentication failed. Invalid username or password.")
+
+        # Update the system status file
+        with open(SYS_FILE_PATH, 'w') as sys_file:
+            json.dump(sys_data, sys_file, indent=4)
+
+    except FileNotFoundError as e:
+        print(f"Error: {e}. Make sure the required files exist.")
+    except Exception as e:
+        print(f"Error switching user: {e}")
+
+def main():
+    parser = argparse.ArgumentParser(description="Switch user in the system.")
+    parser.add_argument("new_user", help="Username to switch to.")
+    args = parser.parse_args()
+
+    switch_user(args.new_user)
+
+if __name__ == "__main__":
+    check()
+    main()
+

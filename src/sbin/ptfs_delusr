@@ -1,0 +1,113 @@
+#!/usr/bin/env python3
+
+import os
+import json
+import argparse
+import shutil
+def check() :
+    sys_file_path =os.path.expanduser("~/ptfs/sys/sys.json")
+
+    try:
+        with open(sys_file_path, 'r') as sys_file:
+            sys_data = json.load(sys_file)
+            status = sys_data.get("status", "")
+    except FileNotFoundError:
+        print("Error: sys.json file not found.")
+        exit(1)
+    except json.JSONDecodeError:
+        print("Error: Unable to decode sys.json file.")
+        exit(1)
+
+    if status.lower() == "off":
+        print("ptfs is off.")
+        exit(1)
+
+check()
+USERS_FILE_PATH = os.path.expanduser("~/ptfs/etc/users_file.json")
+SUDOERS_FILE_PATH = os.path.expanduser("~/ptfs/etc/sudoers_file.json")
+SYS_FILE_PATH = os.path.expanduser("~/ptfs/sys/sys.json")
+
+def delete_user():
+    try:
+        # Read existing users data
+        if os.path.exists(USERS_FILE_PATH):
+            with open(USERS_FILE_PATH, 'r') as users_file:
+                users_data = json.load(users_file)
+        else:
+            print("No users found.")
+            return
+
+        # Get the current user from the system file
+        current_user = None
+        if os.path.exists(SYS_FILE_PATH):
+            with open(SYS_FILE_PATH, 'r') as sys_file:
+                sys_data = json.load(sys_file)
+                current_user = sys_data.get("connected_user", None)
+        else:
+            print("No system file found.")
+            return
+
+        # Get user information
+        parser = argparse.ArgumentParser(description="Delete a user.")
+        parser.add_argument("username", help="Username of the user to be deleted.")
+        args = parser.parse_args()
+
+        # Check if the user exists
+        if args.username not in users_data:
+            print("User does not exist.")
+            return
+
+        # Check if the user being deleted is not "root"
+        if args.username == "root":
+            print("Cannot delete the root user.")
+            return
+
+        # Check if the user is connected
+        if args.username == current_user:
+            print("Cannot delete a connected user.")
+            return
+
+        while True:
+            # Confirm deletion with the user
+            confirm_delete = input(f"Are you sure you want to delete user {args.username}? [Y/N]: ").lower()
+            if confirm_delete in ('y', 'n'):
+                break
+            else:
+                print("Invalid response. Please enter 'y' or 'n'.")
+
+        if confirm_delete == 'n':
+            print("Deletion canceled.")
+            return
+
+        # Delete the user from users file
+        del users_data[args.username]
+
+        # Write the updated users data back to the file
+        with open(USERS_FILE_PATH, 'w') as users_file:
+            json.dump(users_data, users_file, indent=4)
+
+        # Remove the user from sudoers file
+        if os.path.exists(SUDOERS_FILE_PATH):
+            with open(SUDOERS_FILE_PATH, 'r') as sudoers_file:
+                sudoers_data = json.load(sudoers_file)
+
+            if args.username in sudoers_data:
+                del sudoers_data[args.username]
+
+                # Write the updated sudoers data back to the file
+                with open(SUDOERS_FILE_PATH, 'w') as sudoers_file:
+                    json.dump(sudoers_data, sudoers_file, indent=4)
+
+        # Delete the user's directory
+        directory_user = os.path.join(os.path.expanduser("~/ptfs/home"), args.username)
+        if os.path.exists(directory_user):
+            shutil.rmtree(directory_user)
+
+        print(f"User {args.username} deleted successfully.")
+
+    except Exception as e:
+        print(f"Error deleting user: {e}")
+
+if __name__ == "__main__":
+    delete_user()
+

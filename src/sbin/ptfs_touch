@@ -1,0 +1,160 @@
+#!/usr/bin/env python3
+
+import os
+import json
+import argparse
+import time
+def check() :
+    sys_file_path =os.path.expanduser("~/ptfs/sys/sys.json")
+
+    try:
+        with open(sys_file_path, 'r') as sys_file:
+            sys_data = json.load(sys_file)
+            status = sys_data.get("status", "")
+    except FileNotFoundError:
+        print("Error: sys.json file not found.")
+        exit(1)
+    except json.JSONDecodeError:
+        print("Error: Unable to decode sys.json file.")
+        exit(1)
+
+    if status.lower() == "off":
+        print("ptfs is off.")
+        exit(1)
+
+check()
+def create_file(path, comment=None):
+    home_directory = os.path.expanduser("~")
+    # Get the directory path
+    directory_path = os.path.dirname(os.path.abspath(path))
+    
+    # Read the system file to get the current user
+    sys_file_path = os.path.join(home_directory, "ptfs/sys/sys.json")
+    path = os.path.abspath(path)
+    
+    try:
+        with open(sys_file_path, 'r') as sys_file:
+            sys_data = json.load(sys_file)
+            current_user = sys_data.get("connected_user", "")
+    except FileNotFoundError as e:
+        print(f"Error: {e}. Make sure the required files exist.")
+        return False
+    home_path = os.path.join(home_directory, "ptfs/home", current_user)
+    # Check if the user is not root and the directory path is invalid
+    if current_user != "root" and not directory_path.startswith(home_path):
+        print("Error: Permission denied. You can only create files in your home directory.")
+        return False
+    
+    try:
+        # Create the file
+        with open(path, 'w') as file:
+            file.write("")
+
+        # Get the metadata file path
+        metadata_file_path = os.path.join(directory_path, ".metadata.json")
+
+        # Load existing metadata or create a new one
+        metadata = load_metadata(metadata_file_path)
+
+        # Update metadata for the directory
+        update_directory_metadata(directory_path, metadata, comment)
+
+        # Update metadata for the file
+        update_file_metadata(path, metadata, comment)
+
+        # Save metadata to .metadata.json
+        save_metadata(metadata_file_path, metadata)
+
+        return True
+    except Exception as e:
+        print(f"Error creating file: {e}")
+        return False
+
+def load_metadata(metadata_file_path):
+    try:
+        if os.path.exists(metadata_file_path):
+            with open(metadata_file_path, 'r') as metadata_file:
+                return json.load(metadata_file)
+        else:
+            return {}
+    except Exception as e:
+        print(f"Error loading metadata: {e}")
+        return {}
+
+def save_metadata(metadata_file_path, metadata):
+    try:
+        with open(metadata_file_path, 'w') as metadata_file:
+            json.dump(metadata, metadata_file, indent=4)
+    except Exception as e:
+        print(f"Error saving metadata: {e}")
+
+def update_directory_metadata(directory_path, metadata, comment):
+    try:
+        # Update metadata for the directory
+        metadata_key = os.path.basename(directory_path)
+        metadata_item = metadata.get(metadata_key, {})
+        home_directory = os.path.expanduser("~")
+        metadata_item["creation_time"] = time.ctime(os.path.getctime(directory_path))
+        metadata_item["modification_time"] = time.ctime(os.path.getmtime(directory_path))
+        metadata_item["owner"] = get_directory_owner()
+        metadata_item["where"] = os.path.relpath(directory_path, home_directory)
+        metadata_item["comment"] = metadata_item.get("comment", "")
+        
+        # Increment the number of items
+        metadata_item["items"] = metadata_item.get("items", 0) + 1
+
+        # Update the metadata dictionary
+        metadata[metadata_key] = metadata_item
+    except Exception as e:
+        print(f"Error updating directory metadata: {e}")
+
+def update_file_metadata(file_path, metadata, comment):
+    try:
+        # Get the parent directory's metadata key
+        directory_path = os.path.dirname(file_path)
+        metadata_key = os.path.basename(directory_path)
+        home_directory = os.path.expanduser("~")
+        # Update metadata for the file
+        file_name = os.path.basename(file_path)
+        file_metadata = {
+            "creation_time": time.ctime(os.path.getctime(file_path)),
+            "modification_time": time.ctime(os.path.getmtime(file_path)),
+            "owner": get_directory_owner(),
+            "where": os.path.relpath(directory_path, home_directory),
+            "size": os.path.getsize(file_path),
+            "extension": os.path.splitext(file_name)[1],
+            "comment": comment if comment else ""
+        }
+
+        # Add file metadata to the parent directory's metadata
+        metadata.setdefault(metadata_key, {})["files"] = metadata.setdefault(metadata_key, {}).get("files", {})
+        metadata[metadata_key]["files"][file_name] = file_metadata
+    except Exception as e:
+        print(f"Error updating file metadata: {e}")
+
+def get_directory_owner():
+    try:
+        # Get the absolute path to the home directory
+        home_directory = os.path.expanduser("~")
+
+        # Read the system file to get the current user
+        sys_file_path = os.path.join(home_directory, "ptfs/sys/sys.json")
+        with open(sys_file_path, 'r') as sys_file:
+            sys_data = json.load(sys_file)
+            return sys_data.get("connected_user", "")
+    except Exception as e:
+        print(f"Error getting directory owner: {e}")
+        return ""
+
+if __name__ == "__main__":
+    # Create an argument parser
+    parser = argparse.ArgumentParser(description="Create a file and update directory metadata.")
+    parser.add_argument("file_path", help="Path for the new file.")
+    parser.add_argument("--comment", help="Add a comment to the file.")
+
+    # Parse the arguments
+    args = parser.parse_args()
+
+    # Call the create_file function with the provided file path and options
+    create_file(args.file_path, comment=args.comment)
+

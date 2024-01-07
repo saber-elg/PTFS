@@ -1,0 +1,77 @@
+#!/usr/bin/env python3
+import subprocess
+import argparse
+import re
+import os
+import json
+def check() :
+    sys_file_path =os.path.expanduser("~/ptfs/sys/sys.json")
+
+    try:
+        with open(sys_file_path, 'r') as sys_file:
+            sys_data = json.load(sys_file)
+            status = sys_data.get("status", "")
+    except FileNotFoundError:
+        print("Error: sys.json file not found.")
+        exit(1)
+    except json.JSONDecodeError:
+        print("Error: Unable to decode sys.json file.")
+        exit(1)
+
+    if status.lower() == "off":
+        print("ptfs is off.")
+        exit(1)
+
+def get_public_ip():
+    try:
+        result = subprocess.run(['curl', 'ifconfig.me'], capture_output=True, text=True)
+        if result.returncode == 0:
+            return result.stdout.strip()
+        return None
+    except Exception as e:
+        print(f"Error: {e}")
+        return None
+
+def get_private_ips():
+    try:
+        result = subprocess.run(['ip', 'addr'], capture_output=True, text=True)
+        if result.returncode == 0:
+            output = result.stdout
+            interfaces = re.findall(r'\d+: (\w+):.*?inet (\d+\.\d+\.\d+\.\d+)', output, re.DOTALL)
+            return interfaces
+        return None
+    except Exception as e:
+        print(f"Error: {e}")
+        return None
+
+def main():
+    parser = argparse.ArgumentParser(description="Get public or private IP addresses.")
+    parser.add_argument("-pu", "--public", action="store_true", help="Get public IP address.")
+    parser.add_argument("-pr", "--private", action="store_true", help="Get private IP addresses of all interfaces.")
+    
+    args = parser.parse_args()
+
+    if args.public and args.private:
+        print("Error: Specify either -pu for public IP or -pr for private IPs.")
+    elif args.public:
+        public_ip = get_public_ip()
+        if public_ip:
+            print(f"Public IP address: {public_ip}")
+        else:
+            print("Error: Unable to fetch public IP address.")
+    elif args.private:
+        private_ips = get_private_ips()
+        if private_ips:
+            print("Private IP addresses of all network interfaces:")
+            for interface, ip_address in private_ips:
+                print(f"{interface}: {ip_address}")
+        else:
+            print("Error: Unable to fetch private IP addresses.")
+    else:
+        print("Error: Specify either -pu for public IP or -pr for private IPs.")
+
+if __name__ == "__main__":
+    check()
+    main()
+
+

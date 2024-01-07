@@ -1,0 +1,147 @@
+#!/usr/bin/env python3
+
+import json
+import argparse
+import os
+import getpass
+from hashlib import sha256
+def check() :
+    sys_file_path =os.path.expanduser("~/ptfs/sys/sys.json")
+
+    try:
+        with open(sys_file_path, 'r') as sys_file:
+            sys_data = json.load(sys_file)
+            status = sys_data.get("status", "")
+    except FileNotFoundError:
+        print("Error: sys.json file not found.")
+        exit(1)
+    except json.JSONDecodeError:
+        print("Error: Unable to decode sys.json file.")
+        exit(1)
+
+    if status.lower() == "off":
+        print("ptfs is off.")
+        exit(1)
+
+check()
+USERS_FILE_PATH = os.path.expanduser("~/ptfs/etc/users_file.json")
+SUDOERS_FILE_PATH = os.path.expanduser("~/ptfs/etc/sudoers_file.json")
+SYS_FILE_PATH = os.path.expanduser("~/ptfs/sys/sys.json")
+
+def hash_password(password):
+    return sha256(password.encode()).hexdigest()
+
+def is_user_root():
+    try:
+        with open(SYS_FILE_PATH, 'r') as sys_file:
+            sys_data = json.load(sys_file)
+            return sys_data.get("connected_user") == "root"
+    except FileNotFoundError:
+        print(f"Error: {SYS_FILE_PATH} not found.")
+        return False
+    except json.JSONDecodeError:
+        print(f"Error decoding JSON from {SYS_FILE_PATH}.")
+        return False
+
+def user_exists(username):
+    try:
+        with open(USERS_FILE_PATH, 'r') as users_file:
+            users_data = json.load(users_file)
+        return username in users_data
+    except FileNotFoundError:
+        print(f"Error: {USERS_FILE_PATH} not found.")
+        return False
+    except json.JSONDecodeError:
+        print(f"Error decoding JSON from {USERS_FILE_PATH}.")
+        return False
+    except Exception as e:
+        print(f"Error checking user existence: {e}")
+        return False
+
+def change_user_info(username, new_username=None, new_password=None):
+    try:
+        with open(USERS_FILE_PATH, 'r') as users_file:
+            users_data = json.load(users_file)
+
+        if username not in users_data:
+            print(f"Error: User '{username}' does not exist.")
+            return
+
+        if new_username and new_username != username:
+            if user_exists(new_username):
+                print(f"Error: User '{new_username}' already exists.")
+                return
+            if username in get_sudoers_keys():
+                update_sudoers_username(username, new_username)
+            os.system(f"mv ~/ptfs/home/{username} ~/ptfs/home/{new_username}")
+            users_data[new_username] = users_data.pop(username)
+            username = new_username
+            # Check if the user is in sudoers and update sudoers file
+            
+
+        if new_password:
+            hashed_password = hash_password(new_password)
+            users_data[username]['password'] = hashed_password
+
+        with open(USERS_FILE_PATH, 'w') as users_file:
+            json.dump(users_data, users_file, indent=4)
+
+    except FileNotFoundError:
+        print(f"Error: {USERS_FILE_PATH} not found.")
+    except json.JSONDecodeError:
+        print(f"Error decoding JSON from {USERS_FILE_PATH}.")
+    except Exception as e:
+        print(f"Error changing user information: {e}")
+
+def get_sudoers_keys():
+    try:
+        with open(SUDOERS_FILE_PATH, 'r') as sudoers_file:
+            sudoers_data = json.load(sudoers_file)
+            sudoers_keys = list(sudoers_data.keys())
+            return sudoers_keys
+    except FileNotFoundError:
+        print(f"Error: {SUDOERS_FILE_PATH} not found.")
+    except json.JSONDecodeError:
+        print(f"Error decoding JSON from {SUDOERS_FILE_PATH}.")
+    except Exception as e:
+        print(f"Error reading sudoers keys: {e}")
+    
+    # Return an empty list or some default value in case of an exception
+    return []
+
+def update_sudoers_username(old_username, new_username):
+    try:
+        with open(SUDOERS_FILE_PATH, 'r') as sudoers_file:
+            sudoers_data = json.load(sudoers_file)
+
+        # Check if the old username is present in sudoers
+        if old_username not in sudoers_data:
+            print(f"Error: User '{old_username}' is not in sudoers.")
+            return
+
+        # Update the sudoers file
+        sudoers_data[new_username] = sudoers_data.pop(old_username)
+
+        with open(SUDOERS_FILE_PATH, 'w') as sudoers_file:
+            json.dump(sudoers_data, sudoers_file, indent=4)
+
+    except FileNotFoundError:
+        print(f"Error: {SUDOERS_FILE_PATH} not found.")
+    except json.JSONDecodeError:
+        print(f"Error decoding JSON from {SUDOERS_FILE_PATH}.")
+    except Exception as e:
+        print(f"Error updating sudoers username: {e}")
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Change user information")
+    parser.add_argument("username", help="Username of the user to change.")
+    parser.add_argument("-u", "--new_username", help="New username.")
+    parser.add_argument("-p", "--new_password", help="New password.")
+
+    args = parser.parse_args()
+
+    if not is_user_root():
+        print("Error: Only sudo can change user information.")
+    else:
+        change_user_info(args.username, args.new_username, args.new_password)
+

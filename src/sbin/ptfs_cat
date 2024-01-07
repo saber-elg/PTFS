@@ -1,0 +1,108 @@
+#!/usr/bin/env python3
+
+import argparse
+import os
+import json
+def check() :
+    sys_file_path =os.path.expanduser("~/ptfs/sys/sys.json")
+
+    try:
+        with open(sys_file_path, 'r') as sys_file:
+            sys_data = json.load(sys_file)
+            status = sys_data.get("status", "")
+    except FileNotFoundError:
+        print("Error: sys.json file not found.")
+        exit(1)
+    except json.JSONDecodeError:
+        print("Error: Unable to decode sys.json file.")
+        exit(1)
+
+    if status.lower() == "off":
+        print("ptfs is off.")
+        exit(1)
+
+check()
+SYS_FILE_PATH = os.path.expanduser("~/ptfs/sys/sys.json")
+
+def get_connected_user():
+    try:
+        # Get the current user from the system file
+        if os.path.exists(SYS_FILE_PATH):
+            with open(SYS_FILE_PATH, 'r') as sys_file:
+                sys_data = json.load(sys_file)
+                return sys_data.get("connected_user")
+        else:
+            print("System file not found.")
+            return None
+    except Exception as e:
+        print(f"Error getting connected user: {e}")
+        return None
+
+def is_file_in_user_path(file_path, current_user):
+    # Check if the file is within the path /sfs/users/current_user
+    user_path = os.path.join(os.path.expanduser("~/ptfs/home"), current_user)
+    return file_path.startswith(user_path)
+
+def display_file(file_path, head=False, tail=False, less=False):
+    try:
+        # Get the connected user
+        current_user = get_connected_user()
+
+        # Check if the connected user is root
+        if current_user == "root":
+            # Display the file without restriction
+            with open(file_path, 'r') as file:
+                content = file.readlines()
+                if head:
+                    print("".join(content[:3]))
+                elif tail:
+                    print("".join(content[-3:]))
+                else:
+                    if less:
+                        print("".join(content[:10]))
+                    else:
+                        print("".join(content))
+            return
+
+        if not current_user:
+            print("No user connected.")
+            return
+
+        path_of_file = os.path.normpath(os.path.join(os.getcwd(), file_path))
+
+        # Check if the specified file is within the path ~/ptfs/users/current_user
+        if not is_file_in_user_path(path_of_file, current_user):
+            print("Permission denied: You can only display files within your home directory.")
+            return
+
+        with open(path_of_file, 'r') as file:
+            content = file.readlines()
+
+            if head:
+                print("".join(content[:3]))
+            elif tail:
+                print("".join(content[-3:]))
+            else:
+                if less:
+                    print("".join(content[:10]))
+                else:
+                    print("".join(content))
+
+    except FileNotFoundError:
+        print(f"File not found: {file_path}")
+    except PermissionError:
+        print(f"Permission denied: Unable to read the file {file_path}")
+    except Exception as e:
+        print(f"Error reading file: {e}")
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Display the content of a file with various options.")
+    parser.add_argument("file_path", help="Path to the file to be displayed.")
+    parser.add_argument("-H", "--head", action="store_true", help="Display the first 3 lines of the file.")
+    parser.add_argument("-t", "--tail", action="store_true", help="Display the last 3 lines of the file.")
+    parser.add_argument("-l", "--less", action="store_true", help="Display the first 10 lines of the file.")
+    
+    args = parser.parse_args()
+
+    display_file(args.file_path, args.head, args.tail, args.less)
+

@@ -1,0 +1,48 @@
+#!/usr/bin/env python3
+# Import necessary modules
+import pygame
+import json
+import os
+import sys
+
+# Import classes from other modules
+from authentication_manager import AuthenticationManager
+from desktop_page import DesktopPage
+from login_screen import LoginScreen
+
+# Constants
+WIDTH, HEIGHT = 800, 600
+FPS = 30
+ICONS_PATH = os.path.join(os.path.expanduser("~/ptfs"), "sys", "icons")
+IMAGES_PATH = os.path.join(os.path.expanduser("~/ptfs"), "sys", "images")
+USERS_FILE_PATH = os.path.join(os.path.expanduser("~/ptfs"), "etc", "users_file.json")
+
+# Main execution
+if __name__ == "__main__":
+    # Initialize Pygame
+    pygame.init()
+
+    # Set up the Pygame screen
+    screen = pygame.display.set_mode((WIDTH, HEIGHT), pygame.FULLSCREEN)
+    pygame.display.set_caption("Login Page")
+
+    # Load users data from the JSON file
+    try:
+        with open(USERS_FILE_PATH, 'r') as users_file:
+            users_data = json.load(users_file)
+    except FileNotFoundError:
+        print(f"Error: Users file not found at {USERS_FILE_PATH}")
+        sys.exit(1)
+    except json.JSONDecodeError:
+        print(f"Error: Failed to parse users file at {USERS_FILE_PATH}")
+        sys.exit(1)
+
+    # Initialize Authentication Manager with users data
+    auth_manager = AuthenticationManager(users_data)
+
+    # Create a LoginScreen instance
+    login_screen = LoginScreen(screen, auth_manager)
+
+    # Run the Login Screen
+    login_screen.run()
+

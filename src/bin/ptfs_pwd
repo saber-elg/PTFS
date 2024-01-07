@@ -1,0 +1,31 @@
+#!/bin/bash
+# Path to sys.json file
+sys_file_path="$HOME/ptfs/sys/sys.json"
+
+# Check if sys.json file exists
+if [ ! -e "$sys_file_path" ]; then
+    echo "Error: sys.json file not found."
+    exit 1
+fi
+# Read the status from sys.json
+status=$(jq -r '.status' "$sys_file_path")
+
+# Check if the status is off
+if [ "$status" == "off" ]; then
+    echo "System is off."
+    exit 1
+fi
+
+ptfs_pwd() {
+
+  # Get the current working directory
+  current_dir=$(pwd)
+  # Check if the user is in the target directory
+  if [[ $current_dir == ~/ptfs* ]]; then
+    # Extract the relative path starting from /ptfs
+    echo "$(realpath --relative-to="$HOME" "$current_dir") "
+  else
+    echo "Command not found."
+  fi
+}
+ptfs_pwd

@@ -1,0 +1,168 @@
+#!/usr/bin/env python3
+
+import os
+import json
+import time
+import argparse
+import shutil
+def check() :
+    sys_file_path =os.path.expanduser("~/ptfs/sys/sys.json")
+
+    try:
+        with open(sys_file_path, 'r') as sys_file:
+            sys_data = json.load(sys_file)
+            status = sys_data.get("status", "")
+    except FileNotFoundError:
+        print("Error: sys.json file not found.")
+        exit(1)
+    except json.JSONDecodeError:
+        print("Error: Unable to decode sys.json file.")
+        exit(1)
+
+    if status.lower() == "off":
+        print("ptfs is off.")
+        exit(1)
+
+check()
+def remove_directory(path):
+    # Get the absolute path to the home directory
+    home_directory = os.path.expanduser("~")
+
+    # Read the system file to get the current user
+    sys_file_path = os.path.join(home_directory, "ptfs/sys/sys.json")
+    directory_path = os.path.normpath(os.path.join(os.getcwd(), path))
+    try:
+        with open(sys_file_path, 'r') as sys_file:
+            sys_data = json.load(sys_file)
+            current_user = sys_data.get("connected_user", "")
+    except FileNotFoundError as e:
+        print(f"Error: {e}. Make sure the required files exist.")
+        return False
+    home_path = os.path.join(home_directory, "ptfs/home", current_user)
+    # Check if the user is not root and the directory path is invalid
+    if current_user != "root" and not directory_path.startswith(home_path):
+        print("Error: Permission denied. You can only delete directories in your home directory.")
+        return False
+    
+    if os.path.exists(directory_path):
+        dir_contents = os.listdir(directory_path)
+
+        if not dir_contents:
+            # Directory is empty, safe to delete
+            try:
+                os.rmdir(directory_path)
+                print(f"Folder '{directory_path}' deleted successfully.")
+                # Update metadata of the parent folder
+                update_parent_metadata(directory_path)
+            except OSError as e:
+                print(f"Error deleting folder '{directory_path}': {e}")
+        elif len(dir_contents) == 1 and os.path.isfile(os.path.join(directory_path, dir_contents[0])):
+            # Directory contains one file, safe to delete
+            try:
+                shutil.rmtree(directory_path)
+                # Update metadata of the parent folder
+                update_parent_metadata(directory_path)
+            except OSError as e:
+                print(f"Error removing folder")
+        else:
+            # Directory is not empty
+            
+            if len(dir_contents) > 1:
+                if not args.force:
+                    print(f"Error: Directory '{directory_path}' is not empty. Use the -r/--force option to delete non-empty directories.")
+                    return
+
+            # Force deletion for directories with more than one file
+            try:
+                shutil.rmtree(directory_path)
+                # Update metadata of the parent folder
+                update_parent_metadata(directory_path)
+            except OSError as e:
+                print(f"Error deleting folder '{directory_path}': {e}")
+    else:
+        print(f"Error: Directory '{directory_path}' not found.")
+
+def update_parent_metadata(directory_path):
+    # Get the parent directory path
+    parent_directory = os.path.dirname(directory_path)
+
+    # Get the metadata file path of the parent directory
+    metadata_file_path = os.path.join(parent_directory, ".metadata.json")
+
+    # Load existing metadata
+    metadata = load_metadata(metadata_file_path)
+
+    # Update metadata for the parent directory
+    update_directory_metadata(parent_directory, metadata)
+
+    # Save updated metadata to .metadata.json
+    save_metadata(metadata_file_path, metadata)
+
+def update_directory_metadata(directory_path, metadata):
+    try:
+        # Update metadata for the directory
+        metadata_key = os.path.basename(directory_path)
+        metadata_item = metadata.get(metadata_key, {})
+        home_directory = os.path.expanduser("~")
+        metadata_item["creation_time"] = time.ctime(os.path.getctime(directory_path))
+        metadata_item["modification_time"] = time.ctime(os.path.getmtime(directory_path))
+        metadata_item["owner"] = get_directory_owner()
+        metadata_item["where"] = os.path.relpath(directory_path, home_directory)
+        metadata_item["comment"] = metadata_item.get("comment", "")
+        
+        # Increment the number of items
+        metadata_item["items"] = metadata_item.get("items", 0) -1
+
+        # Update the metadata dictionary
+        metadata[metadata_key] = metadata_item
+    except Exception as e:
+        print(f"Error updating directory metadata: {e}")
+
+def load_metadata(metadata_file_path):
+    try:
+        if os.path.exists(metadata_file_path):
+            with open(metadata_file_path, 'r') as metadata_file:
+                return json.load(metadata_file)
+        else:
+            return {}
+    except Exception as e:
+        print(f"Error loading metadata: {e}")
+        return {}
+
+def save_metadata(metadata_file_path, metadata):
+    try:
+        with open(metadata_file_path, 'w') as metadata_file:
+            json.dump(metadata, metadata_file, indent=4)
+    except Exception as e:
+        print(f"Error saving metadata: {e}")
+
+def get_directory_owner():
+    # Get the absolute path to the home directory
+    home_directory = os.path.expanduser("~")
+    # Read the system file to get the current user
+    sys_file_path = os.path.join(home_directory, "ptfs/sys/sys.json")
+    try:
+        with open(sys_file_path, 'r') as sys_file:
+            sys_data = json.load(sys_file)
+            current_user = sys_data.get("connected_user", "")
+            return current_user
+    except FileNotFoundError as e:
+        print(f"Error: {e}. Make sure the required files exist.")
+        return False
+
+if __name__ == "__main__":
+    # Create an argument parser
+    parser = argparse.ArgumentParser(description="Delete a directory with optional comment and force deletion.")
+    parser.add_argument("directory_path", help="Path of the directory or file to be deleted.")
+    parser.add_argument("-r", "--force", action="store_true", help="Force deletion of non-empty directory.")
+
+    # Parse the arguments
+    args = parser.parse_args()
+
+    # Load metadata at the beginning
+    metadata_file_path = os.path.join(os.path.dirname(os.path.abspath(args.directory_path)), ".metadata.json")
+    metadata = load_metadata(metadata_file_path)
+
+    # Call the remove_directory function with the provided directory path and options
+    remove_directory(args.directory_path)
+

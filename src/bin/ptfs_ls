@@ -1,0 +1,65 @@
+#!/usr/bin/env python3
+import os
+import argparse
+import stat
+import json
+from datetime import datetime
+def check() :
+    sys_file_path =os.path.expanduser("~/ptfs/sys/sys.json")
+
+    try:
+        with open(sys_file_path, 'r') as sys_file:
+            sys_data = json.load(sys_file)
+            status = sys_data.get("status", "")
+    except FileNotFoundError:
+        print("Error: sys.json file not found.")
+        exit(1)
+    except json.JSONDecodeError:
+        print("Error: Unable to decode sys.json file.")
+        exit(1)
+
+    if status.lower() == "off":
+        print("ptfs is off.")
+        exit(1)
+
+def ls(path, show_hidden=False, long_format=False):
+    try:
+        items = os.listdir(path)
+        if not show_hidden:
+            items = [item for item in items if not item.startswith('.')]
+
+        items.sort()
+
+        for item in items:
+            item_path = os.path.join(path, item)
+            stat_info = os.stat(item_path)
+
+            if long_format:
+                print(format_long(item, stat_info))
+            else:
+                print(item)
+
+    except FileNotFoundError:
+        print(f"Error: {path} not found.")
+    except Exception as e:
+        print(f"Error listing items: {e}")
+
+def format_long(item, stat_info):
+    mode = stat.filemode(stat_info.st_mode)
+    nlink = stat_info.st_nlink
+    size = stat_info.st_size
+    mtime = datetime.fromtimestamp(stat_info.st_mtime).strftime("%Y-%m-%d %H:%M:%S")
+
+    return f"{mode} {nlink}  {size} {mtime} {item}"
+
+if __name__ == "__main__":
+    check()
+    parser = argparse.ArgumentParser(description="List files and directories in ptfs")
+    parser.add_argument("path", nargs="?", default=".", help="Path to list (default: current directory).")
+    parser.add_argument("-l", "--long", action="store_true", help="Use a long listing format.")
+    parser.add_argument("-H", "--hidden", action="store_true", help="Show hidden files and directories.")
+
+    args = parser.parse_args()
+
+    ls(args.path, args.hidden, args.long)
+

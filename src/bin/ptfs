@@ -1,0 +1,93 @@
+#!/usr/bin/env python3
+
+import json
+import argparse
+import os
+from getpass import getpass
+import hashlib
+import time
+
+SYS_FILE_PATH = os.path.expanduser("~/ptfs/sys/sys.json")
+USERS_FILE_PATH = os.path.expanduser("~/ptfs/etc/users_file.json")
+def authenticate_user(username, password, users_data):
+    hashed_password = users_data.get(username, {}).get("password", "")
+    return hashed_password and hashlib.sha256(password.encode()).hexdigest() == hashed_password
+
+def display_users():
+    try:
+        with open(USERS_FILE_PATH, 'r') as users_file:
+            users_data = json.load(users_file)
+            print("Log in:\n")
+            for user in users_data:
+                print(user)
+
+        return users_data
+
+    except FileNotFoundError as e:
+        print(f"Error: {e}. Make sure the required files exist.")
+        return None
+    except Exception as e:
+        print(f"Error displaying users: {e}")
+        return None
+
+def update_sfs_status(new_status, connected_user=None):
+    try:
+        # Load the current system status
+        with open(SYS_FILE_PATH, 'r') as sys_file:
+            sys_data = json.load(sys_file)
+
+        # Check if the system is already in the "on" state
+        if new_status == "on" and sys_data["status"] == "on":
+            print("PTFS is already in the 'on' state.")
+            return
+
+        # Update the status and connected user (if provided)
+        sys_data["status"] = new_status
+        sys_data["connected_user"] = connected_user
+
+        # Write the updated system status back to the file
+        with open(SYS_FILE_PATH, 'w') as sys_file:
+            json.dump(sys_data, sys_file, indent=4)
+        print(f"PTFS status updated successfully. New status: {new_status}")
+
+    except FileNotFoundError as e:
+        print(f"Error: {e}. Make sure the required files exist.")
+    except Exception as e:
+        print(f"Error updating PTFS status: {e}")
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Update the status of the PTFS system.")
+    parser.add_argument("new_status", choices=["on", "off"], help="New status for the PTFS system.")
+    args = parser.parse_args()
+
+    if args.new_status == "off":
+        update_sfs_status("off", connected_user=None)
+        os.system("clear")
+    else:
+        try:
+           # Load the current system status
+           with open(SYS_FILE_PATH, 'r') as sys_file:
+               sys_data = json.load(sys_file)
+
+           # Check if the system is already in the "on" state
+           if sys_data["status"] == "on":
+               print("PTFS is already in the 'on' state.")
+               exit()
+        except FileNotFoundError as e:
+            print(f"Error: {e}. Make sure the required files exist.")
+        os.system("clear")
+        os.system("plant")
+        time.sleep(3)
+        os.system("clear")
+        users_data = display_users()
+
+        if users_data:
+            username_input = input("\nEnter the username to log in: ")
+            password_input = getpass("\nEnter the password: ")
+
+            if authenticate_user(username_input, password_input, users_data):
+                update_sfs_status("on", connected_user=username_input)
+                os.system("clear")
+            else:
+                print("Authentication failed. Invalid username or password.")
+

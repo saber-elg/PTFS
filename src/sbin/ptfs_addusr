@@ -1,0 +1,102 @@
+#!/usr/bin/env python3
+
+import os
+import json
+import getpass
+from hashlib import sha256
+import argparse
+import hashlib
+def check() :
+    sys_file_path =os.path.expanduser("~/ptfs/sys/sys.json")
+
+    try:
+        with open(sys_file_path, 'r') as sys_file:
+            sys_data = json.load(sys_file)
+            status = sys_data.get("status", "")
+    except FileNotFoundError:
+        print("Error: sys.json file not found.")
+        exit(1)
+    except json.JSONDecodeError:
+        print("Error: Unable to decode sys.json file.")
+        exit(1)
+
+    if status.lower() == "off":
+        print("ptfs is off.")
+        exit(1)
+
+check()
+USERS_FILE_PATH = os.path.expanduser("~/ptfs/etc/users_file.json")
+SYS_FILE_PATH = os.path.expanduser("~/ptfs/sys/sys.json")
+
+def hash_password(password):
+    return sha256(password.encode()).hexdigest()
+
+def create_user():
+    try:
+        # Read existing users data
+        if os.path.exists(USERS_FILE_PATH):
+            with open(USERS_FILE_PATH, 'r') as users_file:
+                users_data = json.load(users_file)
+        else:
+            print("No users found.")
+            return
+
+        # Get the current user from sys.json
+        if os.path.exists(SYS_FILE_PATH):
+            with open(SYS_FILE_PATH, 'r') as sys_file:
+                sys_data = json.load(sys_file)
+                current_user = sys_data.get("connected_user", "")
+
+                # Check if the current user is root
+                if current_user == "root":
+                    # Get user information
+                    parser = argparse.ArgumentParser(description="Create a new user.")
+                    parser.add_argument("username", help="Username of the new user.")
+                    args = parser.parse_args()
+
+                    # Check if the user already exists
+                    if args.username in users_data:
+                        print("User already exists. Choose a different username.")
+                        return
+
+                    # Get and confirm password from the user
+                    password = getpass.getpass(f"Enter the password for {args.username}: ")
+                    confirm_password = getpass.getpass("Confirm the password: ")
+                    if password != confirm_password:
+                        print("Passwords do not match")
+                        return
+
+                    # Hash the password
+                    hashed_password = hash_password(password)
+
+                    # Create user data
+                    user_data = {
+                        "password": hashed_password
+                    }
+
+                    # Add the new user to the dictionary
+                    users_data[args.username] = user_data
+
+                    # Write the updated data back to the file
+                    with open(USERS_FILE_PATH, 'w') as users_file:
+                        json.dump(users_data, users_file, indent=4)
+
+                    directory_user = os.path.join(os.path.expanduser("~/ptfs/home"), args.username)
+                    os.makedirs(directory_user)
+                    os.system(f'echo "{{\\n    \\"status\\": \\"on\\",\\n    \\"connected_user\\": \\"{args.username}\\"\\n}}" > ~/ptfs/sys/sys.json')
+                    os.system(f"ptfs_mkdir --comment user_Documents {directory_user}/Documents")
+                    os.system(f"ptfs_mkdir --comment user_Dowlnoads {directory_user}/Downloads")
+                    os.system(f"ptfs_mkdir --comment user_Desktop {directory_user}/Desktop")
+                    os.system(f'echo "{{\\n    \\"status\\": \\"on\\",\\n    \\"connected_user\\": \\"root\\"\\n}}" > ~/ptfs/sys/sys.json')
+                    print(f"User {args.username} created successfully.")
+                else:
+                    print("Permission denied: Only the root user can create new users.")
+        else:
+            print("Error: Unable to read sys.json. Make sure the file exists.")
+
+    except Exception as e:
+        print(f"Error creating user: {e}")
+
+if __name__ == "__main__":
+    create_user()
+

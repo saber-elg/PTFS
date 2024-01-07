@@ -1,0 +1,42 @@
+#!/usr/bin/env python3
+import argparse
+import json
+import os
+# Create an argument parser
+parser = argparse.ArgumentParser(description="A script to display user information")
+parser.add_argument("-i", "--current", action="store_true", help="display the current user")
+parser.add_argument("-o", "--other", action="store_true", help="display all users except the current one")
+
+# Parse the arguments
+args = parser.parse_args()
+
+# Get the absolute path to the home directory
+home_directory = os.path.expanduser("~")
+
+# Read the system file
+sys_file_path = os.path.join(home_directory, "ptfs/sys/sys.json")
+with open(sys_file_path) as sys_file:
+    sys_data = json.load(sys_file)
+
+# Read the users file
+users_file_path = os.path.join(home_directory, "ptfs/etc/users_file.json")
+with open(users_file_path) as users_file:
+    users_data = json.load(users_file)
+
+# Define the logic for each argument
+if args.current:
+    # Display the current user
+    print(sys_data["connected_user"])
+elif args.other:
+    # Display all users except the current one
+    if "root" != sys_data["connected_user"]:
+        print("root")
+    for user in users_data:
+        if user != sys_data["connected_user"]:
+            print(user)
+else:
+    # Display the root and the users
+    print("root")
+    for user in users_data:
+        print(user)
+

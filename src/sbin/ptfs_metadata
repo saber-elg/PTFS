@@ -1,0 +1,89 @@
+#!/usr/bin/env python3
+
+import os
+import json
+import argparse
+import time
+def check() :
+    sys_file_path =os.path.expanduser("~/ptfs/sys/sys.json")
+
+    try:
+        with open(sys_file_path, 'r') as sys_file:
+            sys_data = json.load(sys_file)
+            status = sys_data.get("status", "")
+    except FileNotFoundError:
+        print("Error: sys.json file not found.")
+        exit(1)
+    except json.JSONDecodeError:
+        print("Error: Unable to decode sys.json file.")
+        exit(1)
+
+    if status.lower() == "off":
+        print("ptfs is off.")
+        exit(1)
+
+check()
+METADATA_FILE_NAME = ".metadata.json"
+
+def get_metadata(path):
+    home_directory = os.path.expanduser("~")
+    
+    # Read the system file to get the current user
+    sys_file_path = os.path.join(home_directory, "ptfs/sys/sys.json")
+    path = os.path.abspath(path)
+    
+    try:
+        with open(sys_file_path, 'r') as sys_file:
+            sys_data = json.load(sys_file)
+            current_user = sys_data.get("connected_user", "")
+    except FileNotFoundError as e:
+        print(f"Error: {e}. Make sure the required files exist.")
+        return False
+    home_path = os.path.join(home_directory, "ptfs/home", current_user)
+    # Check if the user is not root and the directory path is invalid
+    if current_user != "root" and not path.startswith(home_path):
+        print("Error: Permission denied. You can only show metadata of your home directory.")
+        return False
+    # Check if the path is a file or a folder
+    if os.path.isdir(path):
+        # If it is a folder, look for the metadata file inside it
+        metadata_file_path = os.path.join(path, METADATA_FILE_NAME)
+    else:
+        # If it is not a folder, return None
+        return None
+
+    try:
+        # Try to open and read the metadata file
+        with open(metadata_file_path, 'r') as metadata_file:
+            return json.load(metadata_file)
+    except FileNotFoundError:
+        # If the metadata file is not found, return None
+        return None
+
+def display_metadata(metadata):
+    if metadata:
+        # Display metadata for a folder
+        for key, value in metadata.items():
+            print(f"{key}: {value}")
+    else:
+        print(f"Error: Metadata not found.")
+
+def show_metadata(path):
+
+    metadata = get_metadata(path)
+    if metadata:
+        print(f"Metadata for {os.path.basename(path)}:")
+        display_metadata(metadata)
+    else:
+        pass
+
+def main():
+    parser = argparse.ArgumentParser(description="Show metadata for a directory.")
+    parser.add_argument("path", help="Path of the directory.")
+    args = parser.parse_args()
+
+    show_metadata(args.path)
+
+if __name__ == "__main__":
+    main()
+

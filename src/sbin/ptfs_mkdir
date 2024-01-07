@@ -1,0 +1,159 @@
+#!/usr/bin/env python3
+
+import os
+import json
+import time
+import argparse
+def check() :
+    sys_file_path =os.path.expanduser("~/ptfs/sys/sys.json")
+
+    try:
+        with open(sys_file_path, 'r') as sys_file:
+            sys_data = json.load(sys_file)
+            status = sys_data.get("status", "")
+    except FileNotFoundError:
+        print("Error: sys.json file not found.")
+        exit(1)
+    except json.JSONDecodeError:
+        print("Error: Unable to decode sys.json file.")
+        exit(1)
+
+    if status.lower() == "off":
+        print("ptfs is off.")
+        exit(1)
+
+check()
+def create_directory(path, comment=None):
+    # Get the absolute path to the home directory
+    home_directory = os.path.expanduser("~")
+    # Read the system file to get the current user
+    sys_file_path = os.path.join(home_directory, "ptfs/sys/sys.json")
+    directory_path = os.path.normpath(os.path.join(os.getcwd(), path))
+    try:
+        with open(sys_file_path, 'r') as sys_file:
+            sys_data = json.load(sys_file)
+            current_user = sys_data.get("connected_user", "")
+    except FileNotFoundError as e:
+        print(f"Error: {e}. Make sure the required files exist.")
+        return False
+    home_path = os.path.join(home_directory, "ptfs/home", current_user)
+    # Check if the user is not root and the directory path is invalid
+    if current_user != "root" and not directory_path.startswith(home_path):
+        print("Error: Permission denied. You can only create directories in your home directory.")
+        return False
+
+    try:
+        os.makedirs(directory_path)
+
+        # Load metadata after creating the directory
+        metadata = load_directory_metadata(directory_path, home_directory, comment)
+
+        # Save metadata to metadata.json file inside the directory
+        metadata_file_path = os.path.join(directory_path, ".metadata.json")
+        with open(metadata_file_path, 'w') as metadata_file:
+            json.dump({os.path.basename(directory_path): metadata}, metadata_file, indent=4)
+
+        # Update metadata of the parent folder
+        update_parent_metadata(directory_path)
+
+        return True
+    except Exception as e:
+        print(f"Error creating directory: {e}")
+        return False
+
+def load_directory_metadata(directory_path, home_directory, comment):
+    try:
+        # Get creation time, modification time, owner (user), and relative path of the directory
+        metadata = {
+            "creation_time": time.ctime(os.path.getctime(directory_path)),
+            "modification_time": time.ctime(os.path.getmtime(directory_path)),
+            "owner": get_directory_owner(),
+            "where": os.path.relpath(directory_path, home_directory),
+            "items": 0,
+            "comment": comment if comment else ""
+        }
+
+        return metadata
+    except Exception as e:
+        print(f"Error loading directory metadata: {e}")
+        return None
+
+def get_directory_owner():
+    # Get the absolute path to the home directory
+    home_directory = os.path.expanduser("~")
+    # Read the system file to get the current user
+    sys_file_path = os.path.join(home_directory, "ptfs/sys/sys.json")
+    try:
+        with open(sys_file_path, 'r') as sys_file:
+            sys_data = json.load(sys_file)
+            current_user = sys_data.get("connected_user", "")
+            return current_user
+    except FileNotFoundError as e:
+        print(f"Error: {e}. Make sure the required files exist.")
+        return False
+
+def update_parent_metadata(directory_path):
+    # Get the parent directory path
+    parent_directory = os.path.dirname(directory_path)
+
+    # Get the metadata file path of the parent directory
+    metadata_file_path = os.path.join(parent_directory, ".metadata.json")
+
+    # Load existing metadata
+    metadata = load_metadata(metadata_file_path)
+
+    # Update metadata for the parent directory
+    update_directory_metadata(parent_directory, metadata)
+
+    # Save updated metadata to .metadata.json
+    save_metadata(metadata_file_path, metadata)
+
+def update_directory_metadata(directory_path, metadata):
+    try:
+        # Update metadata for the directory
+        metadata_key = os.path.basename(directory_path)
+        metadata_item = metadata.get(metadata_key, {})
+        home_directory = os.path.expanduser("~")
+        metadata_item["creation_time"] = time.ctime(os.path.getctime(directory_path))
+        metadata_item["modification_time"] = time.ctime(os.path.getmtime(directory_path))
+        metadata_item["owner"] = get_directory_owner()
+        metadata_item["where"] = os.path.relpath(directory_path, home_directory)
+        metadata_item["comment"] = metadata_item.get("comment", "")
+        
+        # Increment the number of items
+        metadata_item["items"] = metadata_item.get("items", 0) + 1
+
+        # Update the metadata dictionary
+        metadata[metadata_key] = metadata_item
+    except Exception as e:
+        print(f"Error updating directory metadata: {e}")
+
+def load_metadata(metadata_file_path):
+    try:
+        if os.path.exists(metadata_file_path):
+            with open(metadata_file_path, 'r') as metadata_file:
+                return json.load(metadata_file)
+        else:
+            return {}
+    except Exception as e:
+        print(f"Error loading metadata: {e}")
+        return {}
+
+def save_metadata(metadata_file_path, metadata):
+    try:
+        with open(metadata_file_path, 'w') as metadata_file:
+            json.dump(metadata, metadata_file, indent=4)
+    except Exception as e:
+        print(f"Error saving metadata: {e}")
+
+if __name__ == "__main__":
+    # Create an argument parser
+    parser = argparse.ArgumentParser(description="Create a directory with metadata.")
+    parser.add_argument("directory_path", help="Path for the new directory.")
+    parser.add_argument("--comment", help="Optional comment for the directory.", default=None)
+
+    # Parse the arguments
+    args = parser.parse_args()
+
+    # Call the create_directory function with the provided directory path and optional comment
+    create_directory(args.directory_path, comment=args.comment)

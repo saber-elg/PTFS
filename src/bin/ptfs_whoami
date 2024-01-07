@@ -1,0 +1,21 @@
+#!/bin/bash
+
+# Run the who.py script and store the output in a variable
+who_output=$(ptfs_who -i)
+
+# Define ANSI color codes
+magenta='\033[1;35m'
+cyan='\033[1;36m'
+green='\033[1;32m'
+blue='\033[1;34m'
+reset='\033[0m'  # Reset color
+
+# Check if the output is None
+if [ "$who_output" == "None" ]; then
+    # If None, print the current username using whoami in green color
+    echo -e "${green}$(whoami)@$(hostname)${reset}:${blue}$(pwd)${reset}"
+else
+    # If not None, print the output of the who.py script in green color
+    echo -e "${cyan}$who_output@ptfs${reset}:${magenta}$(pwd)${reset}"
+fi
+

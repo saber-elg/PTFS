@@ -1,0 +1,226 @@
+#!/usr/bin/env python3
+import argparse
+import os
+import shutil
+import tarfile
+import gzip
+import bz2
+import json
+import time
+def check() :
+    sys_file_path =os.path.expanduser("~/ptfs/sys/sys.json")
+
+    try:
+        with open(sys_file_path, 'r') as sys_file:
+            sys_data = json.load(sys_file)
+            status = sys_data.get("status", "")
+    except FileNotFoundError:
+        print("Error: sys.json file not found.")
+        exit(1)
+    except json.JSONDecodeError:
+        print("Error: Unable to decode sys.json file.")
+        exit(1)
+
+    if status.lower() == "off":
+        print("ptfs is off.")
+        exit(1)
+
+check()
+def archive_and_compress(file_or_folder, compressor, comment=None):
+    home_directory = os.path.expanduser("~")
+    # Get the directory path
+    directory_path = os.path.dirname(os.path.abspath(file_or_folder))
+
+    # Read the system file to get the current user
+    sys_file_path = os.path.join(home_directory, "ptfs/sys/sys.json")
+    file_or_folder = os.path.abspath(file_or_folder)
+    try:
+        with open(sys_file_path, 'r') as sys_file:
+            sys_data = json.load(sys_file)
+            current_user = sys_data.get("connected_user", "")
+    except FileNotFoundError as e:
+        print(f"Error: {e}. Make sure the required files exist.")
+        return False
+    home_path = os.path.join(home_directory, "ptfs/home", current_user)
+    # Check if the user is not root and the directory path is invalid
+    if current_user != "root" and not directory_path.startswith(home_path):
+        print("Error: Permission denied. You can only compress files and directories in your home directory.")
+        return False
+
+    try:
+        if not os.path.exists(file_or_folder):
+            print(f"Error: {file_or_folder} does not exist.")
+            return
+
+        if os.path.isfile(file_or_folder):
+            # Archive the file
+            with tarfile.open(f"{file_or_folder}.tar", "w") as tar:
+                tar.add(file_or_folder, arcname=os.path.basename(file_or_folder))
+
+            # Compress the archive
+            with compressor.open(f"{file_or_folder}.tar.{compressor.extension}", "wb") as compressed_file:
+                with open(f"{file_or_folder}.tar", "rb") as tar_file:
+                    shutil.copyfileobj(tar_file, compressed_file)
+
+            # Remove the temporary archive
+            os.remove(f"{file_or_folder}.tar")
+
+            # Get the metadata file path
+            metadata_file_path = os.path.join(directory_path, ".metadata.json")
+
+            # Load existing metadata or create a new one
+            metadata = load_metadata(metadata_file_path)
+
+            # Update metadata for the directory
+            update_directory_metadata(directory_path, metadata, comment)
+
+            # Update metadata for the file
+            compressed_file_path = f"{file_or_folder}.tar.{compressor.extension}"  # Get the compressed file path
+            update_file_metadata(compressed_file_path, metadata, comment)
+
+            # Save metadata to .metadata.json
+            save_metadata(metadata_file_path, metadata)
+            print(f"File archived and compressed successfully.")
+            return True
+
+        elif os.path.isdir(file_or_folder):
+            # Archive the folder
+            with tarfile.open(f"{file_or_folder}.tar", "w") as tar:
+                tar.add(file_or_folder, arcname=os.path.basename(file_or_folder))
+
+            # Compress the archive
+            with compressor.open(f"{file_or_folder}.tar.{compressor.extension}", "wb") as compressed_file:
+                with open(f"{file_or_folder}.tar", "rb") as tar_file:
+                    shutil.copyfileobj(tar_file, compressed_file)
+
+            # Remove the temporary archive
+            os.remove(f"{file_or_folder}.tar")
+
+            # Get the metadata file path
+            metadata_file_path = os.path.join(directory_path, ".metadata.json")
+
+            # Load existing metadata or create a new one
+            metadata = load_metadata(metadata_file_path)
+
+            # Update metadata for the directory
+            update_directory_metadata(directory_path, metadata, comment)
+
+            # Update metadata for the file
+            compressed_file_path = f"{file_or_folder}.tar.{compressor.extension}"  # Get the compressed file path
+            update_file_metadata(compressed_file_path, metadata, comment)
+
+            # Save metadata to .metadata.json
+            save_metadata(metadata_file_path, metadata)
+            print(f"Folder archived and compressed successfully.")
+            return True
+
+        else:
+            print("Error: Invalid file or folder.")
+    except Exception as e:
+        print(f"Error: {e}")
+
+class Bzip2Compressor:
+    extension = "bz2"
+
+    def open(self, filename, mode):
+        return bz2.BZ2File(filename, mode)
+
+class GzipCompressor:
+    extension = "gz"
+
+    def open(self, filename, mode):
+        return gzip.GzipFile(filename, mode)
+
+def load_metadata(metadata_file_path):
+    try:
+        if os.path.exists(metadata_file_path):
+            with open(metadata_file_path, 'r') as metadata_file:
+                return json.load(metadata_file)
+        else:
+            return {}
+    except Exception as e:
+        print(f"Error loading metadata: {e}")
+        return {}
+
+def save_metadata(metadata_file_path, metadata):
+    try:
+        with open(metadata_file_path, 'w') as metadata_file:
+            json.dump(metadata, metadata_file, indent=4)
+    except Exception as e:
+        print(f"Error saving metadata: {e}")
+
+def update_directory_metadata(directory_path, metadata, comment):
+    try:
+        # Update metadata for the directory
+        metadata_key = os.path.basename(directory_path)
+        metadata_item = metadata.get(metadata_key, {})
+        home_directory = os.path.expanduser("~")
+        metadata_item["creation_time"] = time.ctime(os.path.getctime(directory_path))
+        metadata_item["modification_time"] = time.ctime(os.path.getmtime(directory_path))
+        metadata_item["owner"] = get_directory_owner()
+        metadata_item["where"] = os.path.relpath(directory_path, home_directory)
+        metadata_item["comment"] = metadata_item.get("comment", "")
+
+        # Increment the number of items
+        metadata_item["items"] = metadata_item.get("items", 0) + 1
+
+        # Update the metadata dictionary
+        metadata[metadata_key] = metadata_item
+    except Exception as e:
+        print(f"Error updating directory metadata: {e}")
+
+def update_file_metadata(file_path, metadata, comment):
+    try:
+        # Get the parent directory's metadata key
+        directory_path = os.path.dirname(file_path)
+        metadata_key = os.path.basename(directory_path)
+        home_directory = os.path.expanduser("~")
+        # Update metadata for the file
+        file_name = os.path.basename(file_path)
+        file_metadata = {
+            "creation_time": time.ctime(os.path.getctime(file_path)),
+            "modification_time": time.ctime(os.path.getmtime(file_path)),
+            "owner": get_directory_owner(),
+            "where": os.path.relpath(directory_path, home_directory),
+            "size": os.path.getsize(file_path),
+            "extension": os.path.splitext(file_name)[1],
+            "comment": comment if comment else ""
+        }
+
+        # Add file metadata to the parent directory's metadata
+        metadata.setdefault(metadata_key, {})["files"] = metadata.setdefault(metadata_key, {}).get("files", {})
+        metadata[metadata_key]["files"][file_name] = file_metadata
+    except Exception as e:
+        print(f"Error updating file metadata: {e}")
+
+def get_directory_owner():
+    try:
+        # Get the absolute path to the home directory
+        home_directory = os.path.expanduser("~")
+
+        # Read the system file to get the current user
+        sys_file_path = os.path.join(home_directory, "ptfs/sys/sys.json")
+        with open(sys_file_path, 'r') as sys_file:
+            sys_data = json.load(sys_file)
+            return sys_data.get("connected_user", "")
+    except Exception as e:
+        print(f"Error getting directory owner: {e}")
+        return ""
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Archive and compress a file or folder.")
+    parser.add_argument("file_or_folder", help="Path to the file or folder to archive and compress.")
+    parser.add_argument("-b", "--bzip2", action="store_true", help="Use bzip2 compression.")
+    parser.add_argument("-q", "--gzip", action="store_true", help="Use gzip compression.")
+    parser.add_argument("--comment", help="Add a comment to the file.")
+
+    args = parser.parse_args()
+
+    if not args.bzip2 and not args.gzip:
+        print("Error: Choose either -b for bzip2 or -q for gzip compression.")
+    elif args.bzip2 and args.gzip:
+        print("Error: Choose only one compression option.")
+    else:
+        compressor = Bzip2Compressor() if args.bzip2 else GzipCompressor()
+        archive_and_compress(args.file_or_folder, compressor, comment=args.comment)
+

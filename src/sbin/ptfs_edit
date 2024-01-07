@@ -1,0 +1,107 @@
+#!/usr/bin/env python3
+
+import argparse
+import os
+import json
+import subprocess
+def check() :
+    sys_file_path =os.path.expanduser("~/ptfs/sys/sys.json")
+
+    try:
+        with open(sys_file_path, 'r') as sys_file:
+            sys_data = json.load(sys_file)
+            status = sys_data.get("status", "")
+    except FileNotFoundError:
+        print("Error: sys.json file not found.")
+        exit(1)
+    except json.JSONDecodeError:
+        print("Error: Unable to decode sys.json file.")
+        exit(1)
+
+    if status.lower() == "off":
+        print("ptfs is off.")
+        exit(1)
+
+check()
+SYS_FILE_PATH = os.path.expanduser("~/ptfs/sys/sys.json")
+
+def get_connected_user():
+    try:
+        # Get the current user from the system file
+        if os.path.exists(SYS_FILE_PATH):
+            with open(SYS_FILE_PATH, 'r') as sys_file:
+                sys_data = json.load(sys_file)
+                return sys_data.get("connected_user")
+        else:
+            print("System file not found.")
+            return None
+    except Exception as e:
+        print(f"Error getting connected user: {e}")
+        return None
+
+def is_file_in_user_path(file_path, current_user):
+    # Check if the file is within the path ~/sfs/users/current_user
+    user_path = os.path.join(os.path.expanduser("~/ptfs/home"), current_user)
+    return file_path.startswith(user_path)
+
+def is_root_connected():
+    # If the connected user is root, then root is connected
+    return get_connected_user() == "root"
+
+def check_editor_installed(editor):
+    try:
+        subprocess.run(f"{editor} --version", shell=True, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        return True
+    except subprocess.CalledProcessError:
+        return False
+
+def edit_file(file_path, editor):
+    try:
+        # Check if the specified editor is installed
+        if not check_editor_installed(editor):
+            print(f"Error: {editor} is not installed. Please install it and try again.")
+            return
+
+        # Get the connected user
+        current_user = get_connected_user()
+
+        # Check if root is connected
+        if is_root_connected():
+            # Display the file without restriction
+            subprocess.run([editor, file_path])
+            return
+
+        if not current_user:
+            print("No user connected.")
+            return
+
+        path_of_file = os.path.normpath(os.path.join(os.getcwd(), file_path))
+
+        # Check if the specified file is within the path /sfs/users/current_user
+        if not is_file_in_user_path(path_of_file, current_user):
+            print("Permission denied: You can only edit files within your home directory.")
+            return
+
+        subprocess.run([editor, path_of_file])
+
+    except FileNotFoundError:
+        print(f"File not found: {file_path}")
+    except PermissionError:
+        print(f"Permission denied: Unable to read or edit the file {file_path}")
+    except Exception as e:
+        print(f"Error editing file: {e}")
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Edit the content of a file using either nano or vim.")
+    parser.add_argument("file_path", help="Path to the file to be edited.")
+    parser.add_argument("-n", "--nano", action="store_true", help="Edit the file using nano.")
+    parser.add_argument("-v", "--vim", action="store_true", help="Edit the file using vim.")
+    
+    args = parser.parse_args()
+
+    if not (args.nano or args.vim):
+        print("Please specify an editor using -n or -v.")
+    else:
+        editor = "nano" if args.nano else "vim"
+        edit_file(args.file_path, editor)
+
