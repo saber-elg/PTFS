@@ -1,7 +1,5 @@
 # PTFS - Système de Fichiers 
 
-Bienvenue dans le projet PTFS, un système de fichiers développé en Python et Bash Shell, accompagné d'une interface graphique pour le manipuler.
-
 ## Description du Projet
 
 PTFS est un projet qui vise à créer un système de fichiers base sur l’arborescence de linux. Il offre la possibilité de stocker et gérer vos fichiers de manière efficace, tout en fournissant une interface graphique conviviale offrant le nécessaire des fonctionnalités pour faciliter la manipulation.
