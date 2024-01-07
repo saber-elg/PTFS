@@ -25,4 +25,4 @@ Le projet est organisé comme suit :
 
 ## Installation
 Pour installer et utiliser PTFS, veuillez suivre les instructions du guide d'installation trouvé dans le dossier `doc/`.
-**Avertissement : ** Ce projet est en constante évolution. Assurez-vous de consulter la documentation 
+Avertissement :  Ce projet est en constante évolution. Assurez-vous de consulter la documentation 
