@@ -1,30 +1,32 @@
-# PTFS - Système de Fichiers 
+# 📂 PTFS - File System
+## 🚀 A File System Inspired by the Linux Directory Structure
 
-Bienvenue dans le projet PTFS, un système de fichiers développé en Python et Bash Shell, accompagné d'une interface graphique pour le manipuler.
+PTFS is a project aimed at creating an efficient and structured file system, based on the Linux directory architecture. It allows users to store, organize, and manage files easily through an intuitive graphical interface.
 
-## Description du Projet
+## 📌 Main Features
+✔ Structured Storage – Organizes files using a Linux-like hierarchy.<br>
+✔ User-Friendly Graphical Interface – Simplifies file management.<br>
+✔ Customizable Installation – Easy setup through dedicated scripts.<br>
+✔ Efficient File Management – Supports essential operations (creation, deletion, modification, etc.).<br>
+✔ Custom ISO Image – Available for testing the system.<br>
 
-PTFS est un projet qui vise à créer un système de fichiers base sur l’arborescence de linux. Il offre la possibilité de stocker et gérer vos fichiers de manière efficace, tout en fournissant une interface graphique conviviale offrant le nécessaire des fonctionnalités pour faciliter la manipulation.
+## 📂 Project Structure
+```bash
+📦 PTFS
+ ├── 📁 src/          # Source code for bin and sbin functions of the file system
+ ├── 📁 config/       # Installation and configuration scripts
+ ├── 📁 sys/          # Graphical resources (icons, images)
+ ├── 📁 doc/          # Project documentation (report, presentation, installation guide)
+ ├── 📁 iso/          # Link to the custom ISO image
+ ├── 📄 README.md     # Project documentation
+```
+## 👥 Contributors
+👤 El Guelta Mohamed-Saber <br>
+👤 Soukaina Elhadifi <br>
+👤 Ibnchakroune Houssam <br>
+👤 Kamal Salma <br>
 
-## Structure du Projet
+## ⚙️ Installation
+To install and use PTFS, follow the detailed instructions in the installation guide located in the 📁 doc/ folder.
 
-Le projet est organisé comme suit :
-
-- **`src/`**: Contient le code source des fonctions bin et sbin de système de fichiers.
-- **`config/`**: Comprend le script d’installation de système de fichiers.
-- **`sys/`**: Comprend les ressources graphiques (images, icones) nécessaire pour le fonctionnement de système de fichiers.
-- **`doc/`**: Retrouvez toutes les documentations du projet, notamment le rapport, la présentation (PPT), et le guide d'installation.
-- **`iso/`**: Comprend le lien vers le drive contenant l’image iso personnalisée.
-
-## Participants
-- El Guelta Mohamed-Saber 
-- Soukaina Elhadifi
-- Ibnchakroune Houssam 
-- Kamal Salma 
-
-## Supervision
-- Mohamed Cherradi
-
-## Installation
-Pour installer et utiliser PTFS, veuillez suivre les instructions du guide d'installation trouvé dans le dossier `doc/`.
-**Avertissement : ** Ce projet est en constante évolution. Assurez-vous de consulter la documentation 
+⚠️ Note: This project is continuously evolving. Make sure to check the documentation for updates.
